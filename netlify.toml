@@ -1,12 +1,2 @@
-[build]
-  functions = "netlify/functions"
-
-[[plugins]]
-  package = "@netlify/plugin-schedule"
-
 [functions]
-  node_bundler = "esbuild"
-
-[[scheduled.functions]]
-  name = "updateSheet"
-  schedule = "0 */4 * * *"  # This cron expression means every 4 hours.
+  directory = "netlify/functions"

@@ -4,7 +4,7 @@ const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 const axios = require('axios');
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   // Check if this is a scheduled event
   const isScheduled = event.headers['x-netlify-scheduled'];
   if (!isScheduled) {
