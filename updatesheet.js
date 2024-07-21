@@ -3,20 +3,30 @@ const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 const axios = require('axios');
 
-exports.handler = async function(event, context) {
-  // Set up authentication
-  const auth = new google.auth.JWT({
-    email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
-    key: process.env.GOOGLE_CLOUD_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-
-  const sheets = google.sheets({ version: 'v4', auth });
-
-  // Your Google Sheet ID
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+// Scheduled function handler
+exports.handler = async (event, context) => {
+  // Check if this is a scheduled event
+  const isScheduled = event.headers['x-netlify-scheduled'];
+  if (!isScheduled) {
+    return {
+      statusCode: 400,
+      body: JSON.stringify({ message: "This function can only be triggered by a schedule." }),
+    };
+  }
 
   try {
+    // Set up authentication
+    const auth = new google.auth.JWT({
+      email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
+      key: process.env.GOOGLE_CLOUD_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Your Google Sheet ID
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
     // Set up puppeteer with chromium
     const browser = await puppeteer.launch({
       args: chromium.args,
