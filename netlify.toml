@@ -1,0 +1,8 @@
+[functions]
+  directory = "."
+
+[[plugins]]
+package = "@netlify/plugin-functions-schedule"
+
+  [plugins.inputs]
+    schedule = "0 */4 * * *"
