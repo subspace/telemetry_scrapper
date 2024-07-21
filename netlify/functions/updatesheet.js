@@ -1,19 +1,9 @@
-// netlify/functions/updateSheet.js
 const { google } = require('googleapis');
 const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 const axios = require('axios');
 
-exports.handler = async (event) => {
-  // Check if this is a scheduled event
-  const isScheduled = event.headers['x-netlify-scheduled'];
-  if (!isScheduled) {
-    return {
-      statusCode: 400,
-      body: JSON.stringify({ message: "This function can only be triggered by a schedule." }),
-    };
-  }
-
+async function handler(event) {
   try {
     // Set up authentication
     const auth = new google.auth.JWT({
@@ -40,7 +30,7 @@ exports.handler = async (event) => {
     console.log('Navigating to the telemetry page...');
     await page.goto('https://telemetry.subspace.network/#list/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34');
 
-    await page.waitForTimeout(5000);
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
     console.log('Extracting node count...');
     const nodeCount = await page.evaluate(() => {
@@ -77,4 +67,10 @@ exports.handler = async (event) => {
       body: JSON.stringify({ error: "Failed to update data" }),
     };
   }
+}
+
+// Schedule configuration
+exports.handler = handler;
+exports.config = {
+  schedule: "0 */4 * * *"  // This will run the function every 4 hours
 };
