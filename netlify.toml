@@ -1,15 +1,12 @@
 [build]
   command = "npm install && npm run build"
   functions = "."
-  publish = "public"
+
+[functions]
+  directory = "."
 
 [[plugins]]
   package = "@netlify/plugin-functions-schedule"
 
-[functions]
-  directory = "."
-  included_files = ["updatesheet.js"]
-
-[[functions]]
-  function = "updatesheet"
-  schedule = "0 */4 * * *"
+  [plugins.inputs]
+    schedule = "0 */4 * * *"
