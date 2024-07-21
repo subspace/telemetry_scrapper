@@ -7,6 +7,6 @@
 [functions]
   node_bundler = "esbuild"
 
-[[plugin.schedule]]
+[[scheduled.functions]]
   name = "updateSheet"
-  cron = "0 */4 * * *"  # This cron expression means every 4 hours.
+  schedule = "0 */4 * * *"  # This cron expression means every 4 hours.
