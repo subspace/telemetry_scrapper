@@ -3,7 +3,8 @@ const puppeteer = require('puppeteer-core');
 const chromium = require('@sparticuz/chromium');
 const axios = require('axios');
 
-async function handler(event) {
+
+export default async (req) => {
   try {
     // Set up authentication
     const auth = new google.auth.JWT({
@@ -70,7 +71,6 @@ async function handler(event) {
 }
 
 // Schedule configuration
-exports.handler = handler;
-exports.config = {
-  schedule: "0 */4 * * *"  // This will run the function every 4 hours
-};
+export const config = {
+  schedule: "@hourly"
+}
