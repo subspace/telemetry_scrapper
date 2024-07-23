@@ -4,8 +4,9 @@ import chromium from '@sparticuz/chromium';
 import axios from 'axios';
 
 export default async (req, context) => {
+  let browser;
   try {
-    const { next_run } = JSON.parse(req.body);
+    const { next_run } = req.body;
     console.log("Function invoked. Next run scheduled for:", next_run);
 
     // Set up authentication
@@ -21,7 +22,7 @@ export default async (req, context) => {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
     // Set up puppeteer with chromium
-    const browser = await puppeteer.launch({
+    browser = await puppeteer.launch({
       args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
@@ -41,8 +42,6 @@ export default async (req, context) => {
       return element ? parseInt(element.textContent) : null;
     });
 
-    await browser.close();
-
     console.log('Making API request...');
     const apiResponse = await axios.get('https://telemetry.subspace.network/api');
     const spacePledged = apiResponse.data.spacePledged;
@@ -59,16 +58,20 @@ export default async (req, context) => {
       },
     });
 
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ message: "Data updated successfully", nextRun: next_run }),
-    };
+    return new Response(JSON.stringify({ message: "Data updated successfully", nextRun: next_run }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
   } catch (error) {
     console.error('Error details:', error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Failed to update data", details: error.message }),
-    };
+    return new Response(JSON.stringify({ error: "Failed to update data", details: error.message }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } finally {
+    if (browser) {
+      await browser.close();
+    }
   }
 }
 
