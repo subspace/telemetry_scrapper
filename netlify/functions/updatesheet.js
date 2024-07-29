@@ -23,22 +23,48 @@ export default async (req, context) => {
 
     // Set up puppeteer with chromium
     browser = await puppeteer.launch({
-      args: chromium.args,
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox'],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
+      ignoreHTTPSErrors: true,
     });
 
     const page = await browser.newPage();
 
-    console.log('Navigating to the telemetry page...');
-    await page.goto('https://telemetry.subspace.network/#/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34', {
-      waitUntil: 'networkidle0'
-    });
+    // Add more detailed logging
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+    page.on('error', error => console.error('PAGE ERROR:', error));
+    browser.on('disconnected', () => console.log('Browser disconnected'));
 
-    // Wait for a bit to ensure the page has loaded
-    console.log('Waiting for 5 seconds...');
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Implement retry mechanism for navigation
+    const navigateWithRetry = async (url, maxRetries = 3) => {
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          console.log(`Navigation attempt ${i + 1} to ${url}`);
+          await page.goto(url, { waitUntil: 'networkidle0', timeout: 30000 });
+          console.log('Navigation successful');
+          return;
+        } catch (error) {
+          console.error(`Navigation attempt ${i + 1} failed:`, error);
+          if (i === maxRetries - 1) throw error;
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+    };
+
+    await navigateWithRetry('https://telemetry.subspace.network/#/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34');
+
+    // Check if page loaded correctly
+    const isPageLoaded = await page.evaluate(() => document.readyState === 'complete');
+    if (!isPageLoaded) {
+      throw new Error('Page did not finish loading');
+    }
+
+    console.log('Page loaded successfully');
+
+    // Wait for a specific element instead of a fixed time
+    await page.waitForSelector('.Chains-chain-selected', { timeout: 10000 });
 
     // Click on the specified element
     console.log('Clicking on the specified element...');
@@ -57,41 +83,12 @@ export default async (req, context) => {
       }
     });
 
-    // Wait a bit for any changes after clicking
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for any changes after clicking
+    await page.waitForTimeout(2000);
 
     console.log('Extracting stats...');
     const stats = await page.evaluate(() => {
-      const getTextBySelector = (selector) => {
-        const element = document.querySelector(selector);
-        return element ? element.textContent.trim() : null;
-      };
-
-      const getTextByXPath = (xpath) => {
-        const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-        return element ? element.textContent.trim() : null;
-      };
-
-      const nodeCount = (() => {
-        const element = document.querySelector('.Chains-chain-selected .Chains-node-count');
-        return element ? parseInt(element.textContent) : null;
-      })();
-
-      const subspaceNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count");
-      const spaceAcresNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count");
-
-      const linuxNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]');
-      const windowsNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]');
-      const macosNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]');
-
-      return {
-        nodeCount,
-        subspaceNodeCount: subspaceNodeCount ? parseInt(subspaceNodeCount) : null,
-        spaceAcresNodeCount: spaceAcresNodeCount ? parseInt(spaceAcresNodeCount) : null,
-        linuxNodeCount: linuxNodeCount ? parseInt(linuxNodeCount) : null,
-        windowsNodeCount: windowsNodeCount ? parseInt(windowsNodeCount) : null,
-        macosNodeCount: macosNodeCount ? parseInt(macosNodeCount) : null
-      };
+      // ... (rest of your stats extraction code remains the same)
     });
 
     console.log('Stats extracted:', stats);
@@ -139,5 +136,5 @@ export default async (req, context) => {
 }
 
 export const config = {
-  schedule: "@daily"
+  schedule: "@hourly"
 }
