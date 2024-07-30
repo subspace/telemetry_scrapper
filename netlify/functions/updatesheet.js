@@ -5,6 +5,10 @@ import axios from 'axios';
 
 const MAX_RETRIES = 3;
 
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 async function runWithRetry(fn, retries = MAX_RETRIES) {
   for (let i = 0; i < retries; i++) {
     try {
@@ -58,7 +62,7 @@ export default async (req, context) => {
       }
 
       console.log('Page loaded. Waiting for 5 seconds...');
-      await page.waitForTimeout(5000);
+      await wait(5000);
 
       console.log('Clicking on the specified element...');
       const clickResult = await page.evaluate(() => {
@@ -79,11 +83,43 @@ export default async (req, context) => {
       console.log('Click result:', clickResult);
 
       console.log('Waiting after click...');
-      await page.waitForTimeout(2000);
+      await wait(2000);
 
       console.log('Extracting stats...');
       const stats = await page.evaluate(() => {
-        // ... (same as before)
+        const getTextBySelector = (selector) => {
+          const element = document.querySelector(selector);
+          console.log(`Selector ${selector}:`, element ? element.textContent : 'Not found');
+          return element ? element.textContent.trim() : null;
+        };
+
+        const getTextByXPath = (xpath) => {
+          const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+          console.log(`XPath ${xpath}:`, element ? element.textContent : 'Not found');
+          return element ? element.textContent.trim() : null;
+        };
+
+        const nodeCount = (() => {
+          const element = document.querySelector('.Chains-chain-selected .Chains-node-count');
+          console.log('Node count element:', element ? element.textContent : 'Not found');
+          return element ? parseInt(element.textContent) : null;
+        })();
+
+        const subspaceNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count");
+        const spaceAcresNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count");
+
+        const linuxNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]');
+        const windowsNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]');
+        const macosNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]');
+
+        return {
+          nodeCount,
+          subspaceNodeCount: subspaceNodeCount ? parseInt(subspaceNodeCount) : null,
+          spaceAcresNodeCount: spaceAcresNodeCount ? parseInt(spaceAcresNodeCount) : null,
+          linuxNodeCount: linuxNodeCount ? parseInt(linuxNodeCount) : null,
+          windowsNodeCount: windowsNodeCount ? parseInt(windowsNodeCount) : null,
+          macosNodeCount: macosNodeCount ? parseInt(macosNodeCount) : null
+        };
       });
 
       console.log('Stats extracted:', stats);
