@@ -63,16 +63,19 @@ export default async (req, context) => {
       console.log('Page loaded. Waiting for 2 seconds...');
       await wait(2000);
 
+      console.log('Page content:', await page.content());
+
       console.log('Extracting stats...');
       const stats = await page.evaluate(() => {
         const getTextBySelector = (selector) => {
           const element = document.querySelector(selector);
+          console.log(`Selector ${selector}:`, element ? element.textContent : 'Not found');
           return element ? element.textContent.trim() : null;
         };
 
         const nodeCount = getTextBySelector('.Chains-chain-selected .Chains-node-count');
-        const subspaceNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count");
-        const spaceAcresNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count");
+        const subspaceNodeCount = getTextBySelector("div.Chain-content-container table tbody tr:nth-child(1) td.Stats-count");
+        const spaceAcresNodeCount = getTextBySelector("div.Chain-content-container table tbody tr:nth-child(2) td.Stats-count");
 
         return {
           nodeCount: nodeCount ? parseInt(nodeCount) : null,
