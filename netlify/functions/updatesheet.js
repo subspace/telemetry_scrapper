@@ -50,6 +50,9 @@ export default async (req, context) => {
 
       const page = await browser.newPage();
       page.on('console', msg => console.log('PAGE LOG:', msg.text()));
+      page.on('pageerror', error => {
+        console.error('Page error:', error.message);
+      });
 
       console.log('Navigating to the telemetry page...');
       await Promise.race([
@@ -60,27 +63,84 @@ export default async (req, context) => {
         new Promise((_, reject) => setTimeout(() => reject(new Error('Navigation timeout')), 30000))
       ]);
 
-      console.log('Page loaded. Waiting for 2 seconds...');
-      await wait(2000);
+      console.log('Page loaded. Waiting for 5 seconds...');
+      await wait(5000);
 
-      console.log('Page content:', await page.content());
+      console.log('Page content after initial load:', await page.content());
+
+      console.log('Clicking on the Stats tab...');
+      await page.click('.Chain-Tab[title="Stats"]');
+      await page.waitForSelector('.Chain-content table', { timeout: 30000 });
+      await wait(5000); // Wait for 5 seconds after clicking
+
+      console.log('Page content after clicking Stats tab:', await page.content());
 
       console.log('Extracting stats...');
       const stats = await page.evaluate(() => {
-        const getTextBySelector = (selector) => {
-          const element = document.querySelector(selector);
-          console.log(`Selector ${selector}:`, element ? element.textContent : 'Not found');
-          return element ? element.textContent.trim() : null;
+        const getTextByMultipleSelectors = (selectors) => {
+          for (const selector of selectors) {
+            let element;
+            try {
+              if (selector.startsWith('/')) {
+                // XPath
+                element = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+              } else {
+                // CSS selector
+                element = document.querySelector(selector);
+              }
+              if (element) {
+                console.log(`Found element using selector: ${selector}`);
+                return element.textContent.trim();
+              }
+            } catch (error) {
+              console.log(`Error with selector ${selector}:`, error.message);
+            }
+          }
+          console.log('Element not found with any selector');
+          return null;
         };
 
-        const nodeCount = getTextBySelector('.Chains-chain-selected .Chains-node-count');
-        const subspaceNodeCount = getTextBySelector("div.Chain-content-container table tbody tr:nth-child(1) td.Stats-count");
-        const spaceAcresNodeCount = getTextBySelector("div.Chain-content-container table tbody tr:nth-child(2) td.Stats-count");
+        const nodeCount = getTextByMultipleSelectors(['.Chains-chain-selected .Chains-node-count']);
+        
+        const subspaceNodeCount = getTextByMultipleSelectors([
+          "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count",
+          "//*[@id='root']/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[1]/td[2]",
+          "/html/body/div/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[1]/td[2]"
+        ]);
+        
+        const spaceAcresNodeCount = getTextByMultipleSelectors([
+          "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count",
+          "//*[@id='root']/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[2]/td[2]",
+          "/html/body/div/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[2]/td[2]"
+        ]);
+
+        const linuxNodeCount = getTextByMultipleSelectors([
+          "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(1) > td.Stats-count",
+          "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]",
+          "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]"
+        ]);
+
+        const windowsNodeCount = getTextByMultipleSelectors([
+          "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(2) > td.Stats-count",
+          "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]",
+          "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]"
+        ]);
+
+        const macosNodeCount = getTextByMultipleSelectors([
+          "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(3) > td.Stats-count",
+          "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]",
+          "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]"
+        ]);
+
+        console.log('Full Chain-content:', document.querySelector('.Chain-content').outerHTML);
 
         return {
           nodeCount: nodeCount ? parseInt(nodeCount) : null,
           subspaceNodeCount: subspaceNodeCount ? parseInt(subspaceNodeCount) : null,
           spaceAcresNodeCount: spaceAcresNodeCount ? parseInt(spaceAcresNodeCount) : null,
+          linuxNodeCount: linuxNodeCount ? parseInt(linuxNodeCount) : null,
+          windowsNodeCount: windowsNodeCount ? parseInt(windowsNodeCount) : null,
+          macosNodeCount: macosNodeCount ? parseInt(macosNodeCount) : null
         };
       });
 
@@ -101,10 +161,13 @@ export default async (req, context) => {
         resource: {
           values: [[
             timestamp, 
-            stats.nodeCount, 
-            spacePledged, 
-            stats.subspaceNodeCount, 
-            stats.spaceAcresNodeCount,
+            stats.nodeCount || '', 
+            spacePledged || '', 
+            stats.subspaceNodeCount || '', 
+            stats.spaceAcresNodeCount || '',
+            stats.linuxNodeCount || '',
+            stats.windowsNodeCount || '',
+            stats.macosNodeCount || ''
           ]]
         },
       });
@@ -128,5 +191,5 @@ export default async (req, context) => {
 }
 
 export const config = {
-  schedule: "@daily"
+  schedule: "@hourly"
 }
