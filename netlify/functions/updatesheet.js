@@ -1,7 +1,8 @@
 import { google } from 'googleapis';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-import axios from 'axios';
+import { activate } from '@autonomys/auto-utils';
+import { spacePledged } from '@autonomys/auto-consensus';
 
 const MAX_RETRIES = 3;
 const TIMEOUT = 30000; // 30 seconds
@@ -50,59 +51,60 @@ export default async (req, context) => {
       await page.waitForSelector('.Chain-content table', { timeout: TIMEOUT });
       await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 0.5 seconds
 
-      const [stats, apiResponse] = await Promise.all([
-        page.evaluate(() => {
-          const getTextByMultipleSelectors = (selectors) => {
-            for (const selector of selectors) {
-              let element;
-              try {
-                if (selector.startsWith('/')) {
-                  element = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                } else {
-                  element = document.querySelector(selector);
-                }
-                if (element) return element.textContent.trim();
-              } catch (error) {}
-            }
-            return null;
-          };
+      const stats = await page.evaluate(() => {
+        const getTextByMultipleSelectors = (selectors) => {
+          for (const selector of selectors) {
+            let element;
+            try {
+              if (selector.startsWith('/')) {
+                element = document.evaluate(selector, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+              } else {
+                element = document.querySelector(selector);
+              }
+              if (element) return element.textContent.trim();
+            } catch (error) {}
+          }
+          return null;
+        };
 
-          return {
-            nodeCount: getTextByMultipleSelectors(['.Chains-chain-selected .Chains-node-count']),
-            subspaceNodeCount: getTextByMultipleSelectors([
-              "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count",
-              "//*[@id='root']/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[1]/td[2]",
-              "/html/body/div/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[1]/td[2]"
-            ]),
-            spaceAcresNodeCount: getTextByMultipleSelectors([
-              "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count",
-              "//*[@id='root']/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[2]/td[2]",
-              "/html/body/div/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[2]/td[2]"
-            ]),
-            linuxNodeCount: getTextByMultipleSelectors([
-              "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(1) > td.Stats-count",
-              "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]",
-              "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]"
-            ]),
-            windowsNodeCount: getTextByMultipleSelectors([
-              "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(2) > td.Stats-count",
-              "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]",
-              "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]"
-            ]),
-            macosNodeCount: getTextByMultipleSelectors([
-              "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(3) > td.Stats-count",
-              "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]",
-              "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]"
-            ])
-          };
-        }),
-        axios.get('https://telemetry.subspace.network/api', { timeout: 5000 })
-      ]);
+        return {
+          nodeCount: getTextByMultipleSelectors(['.Chains-chain-selected .Chains-node-count']),
+          subspaceNodeCount: getTextByMultipleSelectors([
+            "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count",
+            "//*[@id='root']/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[1]/td[2]",
+            "/html/body/div/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[1]/td[2]"
+          ]),
+          spaceAcresNodeCount: getTextByMultipleSelectors([
+            "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count",
+            "//*[@id='root']/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[2]/td[2]",
+            "/html/body/div/div/div[2]/div[2]/div/div/div[2]/table/tbody/tr[2]/td[2]"
+          ]),
+          linuxNodeCount: getTextByMultipleSelectors([
+            "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(1) > td.Stats-count",
+            "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]",
+            "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]"
+          ]),
+          windowsNodeCount: getTextByMultipleSelectors([
+            "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(2) > td.Stats-count",
+            "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]",
+            "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]"
+          ]),
+          macosNodeCount: getTextByMultipleSelectors([
+            "#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(3) > table > tbody > tr:nth-child(3) > td.Stats-count",
+            "//*[@id='root']/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]",
+            "/html/body/div/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]"
+          ])
+        };
+      });
 
-      const spacePledged = apiResponse.data.spacePledged;
+      // Fetch the spacePledged using @autonomys/auto-utils and @autonomys/auto-consensus
+      console.log('Fetching spacePledged...');
+      const api = await activate({ networkId: 'taurus' });
+      const spacePledgedData = await spacePledged(api);
+
       const timestamp = new Date().toISOString();
 
-      console.log('Data extracted:', { ...stats, spacePledged });
+      console.log('Data extracted:', { ...stats, spacePledged: spacePledgedData.toString() });
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
@@ -112,7 +114,7 @@ export default async (req, context) => {
           values: [[
             timestamp, 
             stats.nodeCount || '', 
-            spacePledged || '', 
+            spacePledgedData.toString(), 
             stats.subspaceNodeCount || '', 
             stats.spaceAcresNodeCount || '',
             stats.linuxNodeCount || '',
@@ -137,5 +139,5 @@ export default async (req, context) => {
 }
 
 export const config = {
-  schedule: "@daily"
-}
+  schedule: "@hourly"
+};

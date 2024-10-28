@@ -1,7 +1,8 @@
 const { google } = require('googleapis');
 const puppeteer = require('puppeteer');
-const axios = require('axios');
 const dotenv = require('dotenv');
+const { activate } = require('@autonomys/auto-utils');
+const { spacePledged } = require('@autonomys/auto-consensus');
 
 // Load environment variables from a .env file
 dotenv.config();
@@ -31,7 +32,7 @@ async function runScript() {
     const page = await browser.newPage();
 
     console.log('Navigating to the telemetry page...');
-    await page.goto('https://telemetry.subspace.network/#/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34', {
+    await page.goto('https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e', {
       waitUntil: 'networkidle0'
     });
 
@@ -63,19 +64,16 @@ async function runScript() {
     const stats = await page.evaluate(() => {
       const getTextBySelector = (selector) => {
         const element = document.querySelector(selector);
-        console.log(`Selector ${selector}:`, element ? element.textContent : 'Not found');
         return element ? element.textContent.trim() : null;
       };
 
       const getTextByXPath = (xpath) => {
         const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-        console.log(`XPath ${xpath}:`, element ? element.textContent : 'Not found');
         return element ? element.textContent.trim() : null;
       };
 
       const nodeCount = (() => {
         const element = document.querySelector('.Chains-chain-selected .Chains-node-count');
-        console.log('Node count element:', element ? element.textContent : 'Not found');
         return element ? parseInt(element.textContent) : null;
       })();
 
@@ -98,24 +96,25 @@ async function runScript() {
 
     console.log('Stats extracted:', stats);
 
-    console.log('Making API request...');
-    const apiResponse = await axios.get('https://telemetry.subspace.network/api');
-    const spacePledged = apiResponse.data.spacePledged;
+    // Fetch the spacePledged using @autonomys/auto-utils and @autonomys/auto-consensus
+    console.log('Fetching spacePledged...');
+    const api = await activate({ networkId: 'taurus' });
+    const spacePledgedData = await spacePledged(api);
 
-    console.log('Space pledged:', spacePledged);
+    console.log('Space pledged:', spacePledgedData);
 
     const timestamp = new Date().toISOString();
 
     // Append to Google Sheet
     const appendResult = await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: 'Sheet1',
+      range: 'taurus',
       valueInputOption: 'USER_ENTERED',
       resource: {
         values: [[
           timestamp, 
           stats.nodeCount, 
-          spacePledged, 
+          spacePledgedData.toString(), 
           stats.subspaceNodeCount, 
           stats.spaceAcresNodeCount,
           stats.linuxNodeCount,
