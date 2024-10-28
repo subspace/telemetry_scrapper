@@ -108,7 +108,7 @@ export default async (req, context) => {
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: 'Sheet1',
+        range: 'taurus',
         valueInputOption: 'USER_ENTERED',
         resource: {
           values: [[
