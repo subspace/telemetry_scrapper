@@ -4,7 +4,7 @@ import chromium from '@sparticuz/chromium';
 import { activate } from '@autonomys/auto-utils';
 import { spacePledged } from '@autonomys/auto-consensus';
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 1;
 const TIMEOUT = 30000; // 30 seconds
 
 async function runWithRetry(fn, retries = MAX_RETRIES) {
@@ -139,5 +139,5 @@ export default async (req, context) => {
 }
 
 export const config = {
-  schedule: "@hourly"
+  schedule: "@daily"
 };
