@@ -42,7 +42,7 @@ export default async (req, context) => {
 
       const page = await browser.newPage();
 
-      await page.goto('https://telemetry.subspace.network/#/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34', {
+      await page.goto('https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e', {
         waitUntil: 'networkidle0',
         timeout: TIMEOUT
       });
@@ -139,5 +139,5 @@ export default async (req, context) => {
 }
 
 export const config = {
-  schedule: "@daily"
+  schedule: "@hourly"
 };
