@@ -84,7 +84,7 @@ async function getSpacePledgedData(network) {
       console.log(`${network} space pledged data:`, data);
       return data;
     } else if (network === 'gemini') {
-      const api = await createConnection('wss://rpc-1.mainnet.subspace.network/ws');
+      const api = await await activate({ networkId: 'mainnet' });
       const data = await spacePledged(api);
       console.log(`${network} space pledged data:`, data);
       return data;
