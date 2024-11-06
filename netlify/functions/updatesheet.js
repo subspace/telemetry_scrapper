@@ -84,7 +84,7 @@ async function getSpacePledgedData(network) {
       console.log(`${network} space pledged data:`, data);
       return data;
     } else if (network === 'gemini') {
-      const api = await createConnection('wss://rpc-1.gemini-3h.subspace.network/ws');
+      const api = await createConnection('wss://rpc-1.mainnet.subspace.network/ws');
       const data = await spacePledged(api);
       console.log(`${network} space pledged data:`, data);
       return data;
@@ -128,7 +128,7 @@ export default async (req, context) => {
 
     const [taurusStats, geminiStats] = await Promise.all([
       scrapePageData(taurusPage, 'https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e', 'taurus'),
-      scrapePageData(geminiPage, 'https://telemetry.subspace.network/#list/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34', 'gemini')
+      scrapePageData(geminiPage, 'https://telemetry.subspace.network/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd', 'gemini')
     ]);
 
     const [taurusSpacePledged, geminiSpacePledged] = await Promise.all([
@@ -163,7 +163,7 @@ export default async (req, context) => {
     if (geminiStats.nodeCount !== null) {
       await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: 'gemini-3h',
+        range: 'mainnet',
         valueInputOption: 'USER_ENTERED',
         resource: {
           values: [[
