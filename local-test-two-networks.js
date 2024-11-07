@@ -124,8 +124,8 @@ async function getSpacePledgedData(network) {
       const data = await spacePledged(api);
       console.log(`${network} space pledged data:`, data);
       return data;
-    } else if (network === 'gemini') {
-      const api = await createConnection('wss://rpc-1.gemini-3h.subspace.network/ws');
+    } else if (network === 'mainnet') {
+      const api = await activate({ networkId: 'mainnet' });
       const data = await spacePledged(api);
       console.log(`${network} space pledged data:`, data);
       return data;
@@ -152,26 +152,26 @@ async function runScript() {
 
     browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
+      args: ['--no-sandbox', '--disable-setuid-sandbox', '--dns-prefetch-disable']
     });
-
-    const [taurusPage, geminiPage] = await Promise.all([
+    
+    const [taurusPage, mainnetPage] = await Promise.all([
       browser.newPage(),
       browser.newPage()
     ]);
 
     // Enable console log collection for debugging
     taurusPage.on('console', msg => console.log('Taurus Page Console:', msg.text()));
-    geminiPage.on('console', msg => console.log('Gemini Page Console:', msg.text()));
+    mainnetPage.on('console', msg => console.log('mainnet Page Console:', msg.text()));
 
-    const [taurusStats, geminiStats] = await Promise.all([
+    const [taurusStats, mainnetStats] = await Promise.all([
       scrapePageData(taurusPage, 'https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e', 'taurus'),
-      scrapePageData(geminiPage, 'https://telemetry.subspace.network/#list/0x0c121c75f4ef450f40619e1fca9d1e8e7fbabc42c895bc4790801e85d5a91c34', 'gemini')
+      scrapePageData(mainnetPage, 'https://telemetry.subspace.network/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd', 'mainnet')
     ]);
 
-    const [taurusSpacePledged, geminiSpacePledged] = await Promise.all([
+    const [taurusSpacePledged, mainnetSpacePledged] = await Promise.all([
       getSpacePledgedData('taurus'),
-      getSpacePledgedData('gemini')
+      getSpacePledgedData('mainnet')
     ]);
 
     const timestamp = new Date().toISOString();
@@ -200,27 +200,27 @@ async function runScript() {
       console.log('Skipping Taurus data append due to null values');
     }
 
-    if (geminiStats.nodeCount !== null) {
+    if (mainnetStats.nodeCount !== null) {
       await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: 'gemini-3h',
+        range: 'mainnet',
         valueInputOption: 'USER_ENTERED',
         resource: {
           values: [[
             timestamp,
-            geminiStats.nodeCount,
-            geminiSpacePledged.toString(),
-            geminiStats.subspaceNodeCount,
-            geminiStats.spaceAcresNodeCount,
-            geminiStats.linuxNodeCount,
-            geminiStats.windowsNodeCount,
-            geminiStats.macosNodeCount
+            mainnetStats.nodeCount,
+            mainnetSpacePledged.toString(),
+            mainnetStats.subspaceNodeCount,
+            mainnetStats.spaceAcresNodeCount,
+            mainnetStats.linuxNodeCount,
+            mainnetStats.windowsNodeCount,
+            mainnetStats.macosNodeCount
           ]]
         },
       });
-      console.log('Gemini data appended to Google Sheet');
+      console.log('mainnet data appended to Google Sheet');
     } else {
-      console.log('Skipping Gemini data append due to null values');
+      console.log('Skipping mainnet data append due to null values');
     }
 
   } catch (error) {

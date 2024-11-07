@@ -1,106 +1,86 @@
 import { google } from 'googleapis';
 import puppeteer from 'puppeteer-core';
 import chromium from '@sparticuz/chromium';
-import { activate, createConnection } from '@autonomys/auto-utils';
+import { activate } from '@autonomys/auto-utils';
 import { spacePledged } from '@autonomys/auto-consensus';
 
-const TIMEOUT = 60000; // Increased timeout to match working version
+const TIMEOUT = 60000;
+
+async function waitForElement(page, selector, timeout = 10000) {
+  try {
+    await page.waitForSelector(selector, { timeout });
+    return true;
+  } catch {
+    console.log(`Timeout waiting for selector: ${selector}`);
+    return false;
+  }
+}
 
 async function scrapePageData(page, url, networkName) {
   console.log(`Navigating to ${networkName} page: ${url}`);
   
-  await page.goto(url, {
-    waitUntil: 'networkidle0',
-    timeout: TIMEOUT
-  });
+  await page.goto(url, { waitUntil: 'networkidle0', timeout: TIMEOUT });
+  const chainSelectorPresent = await waitForElement(page, '.Chains-chain-selected');
+  if (!chainSelectorPresent) console.log(`${networkName}: Chain selector not found`);
 
-  // Wait for initial load, matching the working version's timing
-  await new Promise(resolve => setTimeout(resolve, 5000));
+  await new Promise(resolve => setTimeout(resolve, 10000));
 
-  // Click on the stats tab
-  console.log(`${networkName}: Clicking on stats tab...`);
-  await page.evaluate(() => {
-    const element = document.evaluate(
-      '//*[@id="root"]/div/div[2]/div[1]/div[6]/div[3]',
-      document,
-      null,
-      XPathResult.FIRST_ORDERED_NODE_TYPE,
-      null
-    ).singleNodeValue;
-    if (element) {
-      element.click();
-    } else {
-      console.log('Element not found');
+  let clickSuccess = false;
+  for (let i = 0; i < 3; i++) {
+    try {
+      await page.evaluate(() => {
+        const element = document.evaluate(
+          '//*[@id="root"]/div/div[2]/div[1]/div[6]/div[3]',
+          document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
+        ).singleNodeValue;
+        if (element) element.click();
+      });
+      clickSuccess = true;
+      break;
+    } catch {
+      console.log(`${networkName}: Click attempt ${i + 1} failed`);
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
-  });
+  }
+  if (!clickSuccess) console.log(`${networkName}: Failed to click element`);
 
-  // Wait after clicking
-  await new Promise(resolve => setTimeout(resolve, 2000));
-
-  console.log(`${networkName}: Extracting stats...`);
-  const stats = await page.evaluate(() => {
+  await new Promise(resolve => setTimeout(resolve, 5000));
+  
+  const stats = await page.evaluate((network) => {
     const getTextBySelector = (selector) => {
       const element = document.querySelector(selector);
-      return element ? element.textContent.trim() : null;
+      return element ? parseInt(element.textContent.trim()) : null;
     };
-
-    const getTextByXPath = (xpath) => {
-      const element = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-      return element ? element.textContent.trim() : null;
-    };
-
-    const nodeCount = (() => {
-      const element = document.querySelector('.Chains-chain-selected .Chains-node-count');
-      return element ? parseInt(element.textContent) : null;
-    })();
-
-    const subspaceNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count");
-    const spaceAcresNodeCount = getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count");
-
-    const linuxNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]');
-    const windowsNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]');
-    const macosNodeCount = getTextByXPath('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]');
 
     return {
-      nodeCount,
-      subspaceNodeCount: subspaceNodeCount ? parseInt(subspaceNodeCount) : null,
-      spaceAcresNodeCount: spaceAcresNodeCount ? parseInt(spaceAcresNodeCount) : null,
-      linuxNodeCount: linuxNodeCount ? parseInt(linuxNodeCount) : null,
-      windowsNodeCount: windowsNodeCount ? parseInt(windowsNodeCount) : null,
-      macosNodeCount: macosNodeCount ? parseInt(macosNodeCount) : null
+      nodeCount: getTextBySelector('.Chains-chain-selected .Chains-node-count'),
+      subspaceNodeCount: getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(1) > td.Stats-count"),
+      spaceAcresNodeCount: getTextBySelector("#root > div > div.Chain > div.Chain-content-container > div > div > div:nth-child(2) > table > tbody > tr:nth-child(2) > td.Stats-count"),
+      linuxNodeCount: getTextBySelector('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[1]/td[2]'),
+      windowsNodeCount: getTextBySelector('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[2]/td[2]'),
+      macosNodeCount: getTextBySelector('//*[@id="root"]/div/div[2]/div[2]/div/div/div[3]/table/tbody/tr[3]/td[2]')
     };
-  });
+  }, networkName);
 
   console.log(`${networkName} stats extracted:`, stats);
   return stats;
 }
 
 async function getSpacePledgedData(network) {
-  console.log(`Fetching space pledged data for ${network}`);
   try {
-    if (network === 'taurus') {
-      const api = await activate({ networkId: 'taurus' });
-      const data = await spacePledged(api);
-      console.log(`${network} space pledged data:`, data);
-      return data;
-    } else if (network === 'gemini') {
-      const api = await await activate({ networkId: 'mainnet' });
-      const data = await spacePledged(api);
-      console.log(`${network} space pledged data:`, data);
-      return data;
-    }
+    const api = await activate({ networkId: network });
+    const data = await spacePledged(api);
+    console.log(`${network} space pledged data:`, data);
+    return data;
   } catch (error) {
     console.error(`Error fetching space pledged data for ${network}:`, error);
     throw error;
   }
 }
 
-export default async (req, context) => {
+export default async (req) => {
   let browser;
   try {
-    const { next_run } = req.body;
-    console.log("Function invoked. Next run:", next_run);
-
     const auth = new google.auth.JWT({
       email: process.env.GOOGLE_CLOUD_CLIENT_EMAIL,
       key: process.env.GOOGLE_CLOUD_PRIVATE_KEY.replace(/\\n/g, '\n'),
@@ -111,21 +91,13 @@ export default async (req, context) => {
     const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
     browser = await puppeteer.launch({
-      args: [...chromium.args, '--no-sandbox'],
+      args: [...chromium.args, '--no-sandbox', '--disable-setuid-sandbox', '--dns-prefetch-disable'],
       defaultViewport: chromium.defaultViewport,
       executablePath: await chromium.executablePath(),
       headless: chromium.headless,
     });
 
-    const [taurusPage, geminiPage] = await Promise.all([
-      browser.newPage(),
-      browser.newPage()
-    ]);
-
-    // Enable console log collection
-    taurusPage.on('console', msg => console.log('Taurus Page Console:', msg.text()));
-    geminiPage.on('console', msg => console.log('Gemini Page Console:', msg.text()));
-
+    const [taurusPage, geminiPage] = await Promise.all([browser.newPage(), browser.newPage()]);
     const [taurusStats, geminiStats] = await Promise.all([
       scrapePageData(taurusPage, 'https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e', 'taurus'),
       scrapePageData(geminiPage, 'https://telemetry.subspace.network/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd', 'gemini')
@@ -133,73 +105,36 @@ export default async (req, context) => {
 
     const [taurusSpacePledged, geminiSpacePledged] = await Promise.all([
       getSpacePledgedData('taurus'),
-      getSpacePledgedData('gemini')
+      getSpacePledgedData('mainnet')
     ]);
 
     const timestamp = new Date().toISOString();
 
-    // Only append data if stats are not null
-    if (taurusStats.nodeCount !== null) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: 'taurus',
-        valueInputOption: 'USER_ENTERED',
-        resource: {
-          values: [[
-            timestamp,
-            taurusStats.nodeCount,
-            taurusSpacePledged.toString(),
-            taurusStats.subspaceNodeCount,
-            taurusStats.spaceAcresNodeCount,
-            taurusStats.linuxNodeCount,
-            taurusStats.windowsNodeCount,
-            taurusStats.macosNodeCount
-          ]]
-        },
-      });
-      console.log('Taurus data appended to Google Sheet');
-    }
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'taurus',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [[timestamp, taurusStats.nodeCount, taurusSpacePledged, taurusStats.subspaceNodeCount, taurusStats.spaceAcresNodeCount, taurusStats.linuxNodeCount, taurusStats.windowsNodeCount, taurusStats.macosNodeCount]] },
+    });
 
-    if (geminiStats.nodeCount !== null) {
-      await sheets.spreadsheets.values.append({
-        spreadsheetId,
-        range: 'mainnet',
-        valueInputOption: 'USER_ENTERED',
-        resource: {
-          values: [[
-            timestamp,
-            geminiStats.nodeCount,
-            geminiSpacePledged.toString(),
-            geminiStats.subspaceNodeCount,
-            geminiStats.spaceAcresNodeCount,
-            geminiStats.linuxNodeCount,
-            geminiStats.windowsNodeCount,
-            geminiStats.macosNodeCount
-          ]]
-        },
-      });
-      console.log('Gemini data appended to Google Sheet');
-    }
+    await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'mainnet',
+      valueInputOption: 'USER_ENTERED',
+      resource: { values: [[timestamp, geminiStats.nodeCount, geminiSpacePledged, geminiStats.subspaceNodeCount, geminiStats.spaceAcresNodeCount, geminiStats.linuxNodeCount, geminiStats.windowsNodeCount, geminiStats.macosNodeCount]] },
+    });
 
-    return new Response(JSON.stringify({
-      message: "Data updated successfully",
-      nextRun: next_run,
-      stats: { taurus: taurusStats, gemini: geminiStats }
-    }), {
+    return new Response(JSON.stringify({ message: "Data updated successfully", stats: { taurus: taurusStats, gemini: geminiStats } }), {
       status: 200,
-      headers: { 'Content-Type': 'application/json' }
+      headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('Error:', error.message);
     throw error;
   } finally {
-    if (browser) {
-      await browser.close();
-    }
+    if (browser) await browser.close();
   }
-}
-
-export const config = {
-  schedule: "@hourly"
 };
+
+export const config = { schedule: "@hourly" };
