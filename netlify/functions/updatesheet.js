@@ -96,6 +96,43 @@ export default async (req, context) => {
       const sheets = google.sheets({ version: 'v4', auth });
       const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
+      // Function to get the timestamp of the last entry in a sheet
+      const getLastEntryTimestamp = async (sheetName) => {
+        const response = await sheets.spreadsheets.values.get({
+          spreadsheetId,
+          range: `${sheetName}!A:A`, // Assuming timestamps are in column A
+        });
+        const rows = response.data.values;
+        if (rows && rows.length > 1) { // Skip header row
+          const lastRow = rows[rows.length - 1];
+          return new Date(lastRow[0]);
+        }
+        return null;
+      };
+
+      // Get current timestamp
+      const currentTimestamp = new Date();
+
+      // Check if data was updated less than 10 minutes ago
+      const [taurusLastTimestamp, mainnetLastTimestamp] = await Promise.all([
+        getLastEntryTimestamp('taurus'),
+        getLastEntryTimestamp('mainnet'),
+      ]);
+
+      const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
+
+      const shouldUpdateTaurus = !taurusLastTimestamp || (currentTimestamp - taurusLastTimestamp) >= tenMinutes;
+      const shouldUpdateMainnet = !mainnetLastTimestamp || (currentTimestamp - mainnetLastTimestamp) >= tenMinutes;
+
+      // If neither needs updating, exit early
+      if (!shouldUpdateTaurus && !shouldUpdateMainnet) {
+        console.log('Data was recently updated. Skipping this run.');
+        return new Response(JSON.stringify({ message: "Data was recently updated. Skipping this run.", nextRun: next_run }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
       browser = await puppeteer.launch({
         args: [...chromium.args, '--no-sandbox'],
         defaultViewport: chromium.defaultViewport,
@@ -103,72 +140,86 @@ export default async (req, context) => {
         headless: chromium.headless,
       });
 
-      const taurusPage = await browser.newPage();
-      const mainnetPage = await browser.newPage();
+      const results = [];
+      const timestamp = currentTimestamp.toISOString();
 
-      const [taurusData, mainnetData] = await Promise.all([
-        scrapeNetwork(
+      if (shouldUpdateTaurus) {
+        const taurusPage = await browser.newPage();
+        const taurusData = await scrapeNetwork(
           taurusPage,
           'https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e',
           'taurus'
-        ),
-        scrapeNetwork(
+        );
+        console.log('Taurus data extracted:', { ...taurusData.stats, spacePledged: taurusData.spacePledgedData.toString() });
+        results.push(
+          sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range: 'taurus',
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+              values: [[
+                timestamp,
+                taurusData.stats.nodeCount || '',
+                taurusData.spacePledgedData.toString(),
+                taurusData.stats.subspaceNodeCount || '',
+                taurusData.stats.spaceAcresNodeCount || '',
+                taurusData.stats.linuxNodeCount || '',
+                taurusData.stats.windowsNodeCount || '',
+                taurusData.stats.macosNodeCount || ''
+              ]]
+            },
+          })
+        );
+      } else {
+        console.log('Taurus data was recently updated. Skipping.');
+      }
+
+      if (shouldUpdateMainnet) {
+        const mainnetPage = await browser.newPage();
+        const mainnetData = await scrapeNetwork(
           mainnetPage,
-          'https://telemetry.subspace.network/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd',
+          'https://telemetry.subspace.foundation/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd',
           'mainnet'
-        )
-      ]);
+        );
+        console.log('Mainnet data extracted:', { ...mainnetData.stats, spacePledged: mainnetData.spacePledgedData.toString() });
+        results.push(
+          sheets.spreadsheets.values.append({
+            spreadsheetId,
+            range: 'mainnet',
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+              values: [[
+                timestamp,
+                mainnetData.stats.nodeCount || '',
+                mainnetData.spacePledgedData.toString(),
+                mainnetData.stats.subspaceNodeCount || '',
+                mainnetData.stats.spaceAcresNodeCount || '',
+                mainnetData.stats.linuxNodeCount || '',
+                mainnetData.stats.windowsNodeCount || '',
+                mainnetData.stats.macosNodeCount || ''
+              ]]
+            },
+          })
+        );
+      } else {
+        console.log('Mainnet data was recently updated. Skipping.');
+      }
 
-      const timestamp = new Date().toISOString();
-
-      console.log('Data extracted:', {
-        taurus: { ...taurusData.stats, spacePledged: taurusData.spacePledgedData.toString() },
-        mainnet: { ...mainnetData.stats, spacePledged: mainnetData.spacePledgedData.toString() }
-      });
-
-      // Save both networks' data
-      await Promise.all([
-        sheets.spreadsheets.values.append({
-          spreadsheetId,
-          range: 'taurus',
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [[
-              timestamp,
-              taurusData.stats.nodeCount || '',
-              taurusData.spacePledgedData.toString(),
-              taurusData.stats.subspaceNodeCount || '',
-              taurusData.stats.spaceAcresNodeCount || '',
-              taurusData.stats.linuxNodeCount || '',
-              taurusData.stats.windowsNodeCount || '',
-              taurusData.stats.macosNodeCount || ''
-            ]]
-          },
-        }),
-        sheets.spreadsheets.values.append({
-          spreadsheetId,
-          range: 'mainnet',
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values: [[
-              timestamp,
-              mainnetData.stats.nodeCount || '',
-              mainnetData.spacePledgedData.toString(),
-              mainnetData.stats.subspaceNodeCount || '',
-              mainnetData.stats.spaceAcresNodeCount || '',
-              mainnetData.stats.linuxNodeCount || '',
-              mainnetData.stats.windowsNodeCount || '',
-              mainnetData.stats.macosNodeCount || ''
-            ]]
-          },
-        })
-      ]);
-
-      console.log('Data appended to Google Sheets');
-      return new Response(JSON.stringify({ message: "Data updated successfully", nextRun: next_run }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' }
-      });
+      // Save data to Google Sheets if there are updates
+      if (results.length > 0) {
+        await Promise.all(results);
+        console.log('Data appended to Google Sheets');
+        return new Response(JSON.stringify({ message: "Data updated successfully", nextRun: next_run }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } else {
+        console.log('No data was appended to Google Sheets.');
+        return new Response(JSON.stringify({ message: "No data needed updating.", nextRun: next_run }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     } catch (error) {
       console.error('Error:', error.message);
       throw error;
