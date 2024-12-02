@@ -147,7 +147,7 @@ export default async (req, context) => {
         const taurusPage = await browser.newPage();
         const taurusData = await scrapeNetwork(
           taurusPage,
-          'https://telemetry.subspace.foundation/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e',
+          'https://telemetry.subspace.network/#list/0x295aeafca762a304d92ee1505548695091f6082d3f0aa4d092ac3cd6397a6c5e',
           'taurus'
         );
         console.log('Taurus data extracted:', { ...taurusData.stats, spacePledged: taurusData.spacePledgedData.toString() });
@@ -178,7 +178,7 @@ export default async (req, context) => {
         const mainnetPage = await browser.newPage();
         const mainnetData = await scrapeNetwork(
           mainnetPage,
-          'https://telemetry.subspace.foundation/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd',
+          'https://telemetry.subspace.network/#list/0x66455a580aabff303720aa83adbe6c44502922251c03ba73686d5245da9e21bd',
           'mainnet'
         );
         console.log('Mainnet data extracted:', { ...mainnetData.stats, spacePledged: mainnetData.spacePledgedData.toString() });

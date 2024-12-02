@@ -661,6 +661,7 @@ declare class GoogleSpreadsheetWorksheet {
     get hidden(): WorksheetProperties['hidden'];
     get tabColor(): WorksheetProperties['tabColor'];
     get rightToLeft(): WorksheetProperties['rightToLeft'];
+    private get _headerRange();
     set sheetId(newVal: WorksheetProperties['sheetId']);
     set title(newVal: WorksheetProperties['title']);
     set index(newVal: WorksheetProperties['index']);
@@ -686,6 +687,7 @@ declare class GoogleSpreadsheetWorksheet {
     saveCells(cellsToUpdate: GoogleSpreadsheetCell[]): Promise<void>;
     _ensureHeaderRowLoaded(): Promise<void>;
     loadHeaderRow(headerRowIndex?: number): Promise<void>;
+    private _processHeaderRow;
     setHeaderRow(headerValues: string[], headerRowIndex?: number): Promise<void>;
     addRows(rows: RawRowData[], options?: AddRowOptions): Promise<GoogleSpreadsheetRow<Record<string, any>>[]>;
     /** add a single row - see addRows for more info */
@@ -721,6 +723,7 @@ declare class GoogleSpreadsheetWorksheet {
      */
     updateDimensionProperties(columnsOrRows: WorksheetDimension, properties: WorksheetDimensionProperties, bounds: Partial<DimensionRangeIndexes>): Promise<any>;
     getCellsInRange(a1Range: A1Range, options?: GetValuesRequestOptions): Promise<any>;
+    batchGetCellsInRange(a1Ranges: A1Range[], options?: GetValuesRequestOptions): Promise<any>;
     updateNamedRange(): Promise<void>;
     addNamedRange(): Promise<void>;
     deleteNamedRange(): Promise<void>;
