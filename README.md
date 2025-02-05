@@ -26,16 +26,13 @@ Here's what you need to do to get these credentials:
         - Download the JSON file
 2. Google Sheet Setup:
     - Create a new Google Sheet
-    - Create two sheets named "taurus" and "mainnet"
     - Share the sheet with the service account email address (with editor access)
     - Copy the spreadsheet ID from the URL (it's the long string between /d/ and /edit in the URL)
 3. To run the script:
 ```bash
-node local-test-two-networks.js
+node local-test-mainnet.js
 ```
 The script will:
-    - Launch headless Chrome browser instances
-    - Scrape data from Subspace telemetry pages for both Taurus and mainnet networks
-    - Fetch space pledged data using the @autonomys/auto-utils library
+    - Subscribe to Telemetry websocket
+    - Collect information on nodes uptime
     - Write the collected data to your Google Sheet
-Note: Make sure you have Node.js installed on your system. The script uses Puppeteer which will download a version of Chromium on first run.
